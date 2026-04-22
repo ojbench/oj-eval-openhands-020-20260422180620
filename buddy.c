@@ -43,15 +43,24 @@ int init_page(void *p, int pgcount){
     }
     for (int i = 0; i < MAXPAGES; ++i) alloc_rank_map[i] = 0;
 
-    /* Initially, only the highest possible rank block(s) are marked free to cover total_pages.
-       If total_pages is not exact power of two, memory above covered area is ignored. */
-    int covered_pages = 1 << (max_rank - 1);
-    if (covered_pages > total_pages) covered_pages = total_pages;
-
-    /* We only manage the first covered_pages pages as a single block at max_rank if exactly matches */
-    if ((1 << (max_rank - 1)) == covered_pages) {
-        free_map[max_rank][0] = 1;
-        free_count[max_rank] = 1;
+    /* Decompose the pgcount consecutive pages into aligned buddy blocks. */
+    int remaining = total_pages;
+    int cur_idx = 0; /* in pages */
+    while (remaining > 0) {
+        int chosen_r = 1;
+        for (int r = max_rank; r >= 1; --r) {
+            int block_pages = 1 << (r - 1);
+            if (block_pages <= remaining && (cur_idx % block_pages == 0)) {
+                chosen_r = r;
+                break;
+            }
+        }
+        int bp = 1 << (chosen_r - 1);
+        int block_idx = cur_idx / bp;
+        free_map[chosen_r][block_idx] = 1;
+        free_count[chosen_r]++;
+        cur_idx += bp;
+        remaining -= bp;
     }
     return OK;
 }
